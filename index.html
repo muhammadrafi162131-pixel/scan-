@@ -126,11 +126,11 @@
     let isCooldown = false; 
 
     // ⏱️ KONDISI WAKTU (Karena kamu uji coba siang hari, batas saya naikkan agar tidak langsung Alpa)
-    const JAM_MASUK_MAKSIMAL = 12;   // Batas Tepat Waktu sebelum jam 12:00 siang
-    const MENIT_MASUK_MAKSIMAL = 0; 
+    const JAM_MASUK_MAKSIMAL = 7:00;   // Batas Tepat Waktu sebelum jam 07:00 siang
+    const MENIT_MASUK_MAKSIMAL = 5; 
 
-    const JAM_BATAS_TELAT = 13;      // Batas Terlambat sebelum jam 13:00 siang (Lewat jam 13:00 = Alpa)
-    const MENIT_BATAS_TELAT = 0;
+    const JAM_BATAS_TELAT = 7:05;      // Batas Terlambat sebelum jam 07:05 siang (Lewat jam 07:05 = Alpa)
+    const MENIT_BATAS_TELAT = 5;
 
     async function init() {
         labelContainer = document.getElementById("label-container");
@@ -139,7 +139,7 @@
         historyList = document.getElementById("history-list");
 
         try {
-            const modelURL = URL_MODEL + "model.json";
+           const URL_MODEL = "https://teachablemachine.withgoogle.com/models/oHOHxZyqo/";
             const metadataURL = URL_MODEL + "metadata.json";
 
             labelContainer.innerHTML = "Memuat model wajah...";
@@ -169,7 +169,7 @@
         
         const prediction = await model.predict(webcam.canvas);
         let scoreSiswa = prediction[0].probability;
-        let namaSiswa = prediction[0].className;
+        let namaSiswa = prediction[0].Rafi;
         let scoreOrangLain = prediction[1] ? prediction[1].probability : 0;
 
         if (scoreSiswa > 0.85) {
@@ -184,12 +184,12 @@
             let textClass = "";
 
             // Logika Evaluasi Jam Masuk
-            if (jam < JAM_MASUK_MAKSIMAL || (jam === JAM_MASUK_MAKSIMAL && menit <= MENIT_MASUK_MAKSIMAL)) {
+            if (jam < JAM_MASUK_MAKSIMAL || (jam === JAM_MASUK_MAKSIMAL & menit <= MENIT_MASUK_MAKSIMAL)) {
                 statusKehadiran = "HADIR (Tepat Waktu)";
                 badgeClass = "badge-hadir";
                 textClass = "match";
                 statusIcon.innerText = "✅";
-            } else if (jam < JAM_BATAS_TELAT || (jam === JAM_BATAS_TELAT && menit <= MENIT_BATAS_TELAT)) {
+            } else if (jam < JAM_BATAS_TELAT || (jam === JAM_BATAS_TELAT & menit <= MENIT_BATAS_TELAT)) {
                 statusKehadiran = "TELAT";
                 badgeClass = "badge-telat";
                 textClass = "warning";

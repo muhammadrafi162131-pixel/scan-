@@ -7,10 +7,11 @@
     <style>
         body { font-family: Arial, sans-serif; text-align: center; background-color: #f0f2f5; padding-top: 50px; }
         .container { max-width: 500px; margin: 0 auto; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
-        #webcam-container { margin: 20px 0; border-radius: 8px; overflow: hidden; display: inline-block; background: #333; }
+        #webcam-container { margin: 20px 0; border-radius: 8px; overflow: hidden; display: inline-block; background: #333; min-width: 350px; min-height: 350px; }
         #label-container { font-size: 20px; font-weight: bold; margin-top: 15px; }
         .match { color: green; }
         .stranger { color: red; }
+        .error { color: orange; font-size: 16px; background: #ffe6e6; padding: 10px; border-radius: 5px; margin-top: 10px; text-align: left; }
     </style>
 </head>
 <body>
@@ -20,36 +21,50 @@
     <p>Posisikan wajah Anda di depan kamera untuk verifikasi.</p>
     
     <div id="webcam-container"></div>
-    <div id="label-container">Menyalakan kamera...</div>
+    <div id="label-container">Menyalakan kamera dan memuat model...</div>
+    <div id="error-log"></div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest/dist/teachablemachine-image.min.js"></script>
 
 <script type="text/javascript">
-    // 🔴 GANTI LINK DI BAWAH INI DENGAN URL LINK MODEL KAMU DARI TEACHABLE MACHINE
-    const URL_MODEL = "const URL_MODEL = "https:/teachablemachine.withgoogle.com/models/oHOHxZyqo/";
+    // 🔴 Link model kamu sudah aktif di bawah ini:
+    const URL_MODEL = "https://teachablemachine.withgoogle.com/models/oHOHxZyqo/";
 
-    let model, webcam, labelContainer, maxPredictions;
+    let model, webcam, labelContainer, errorLog;
 
     async function init() {
-        const modelURL = URL_MODEL + "model.json";
-        const metadataURL = URL_MODEL + "metadata.json";
-
-        // Load model wajah
-        model = await tmImage.load(modelURL, metadataURL);
-        maxPredictions = model.getTotalClasses();
-
-        // Setup Webcam
-        const flip = true; 
-        webcam = new tmImage.Webcam(350, 350, flip); // Lebar, Tinggi, Flip kamera
-        await webcam.setup(); 
-        await webcam.play();
-        window.requestAnimationFrame(loop);
-
-        // Masukkan element webcam ke HTML
-        document.getElementById("webcam-container").appendChild(webcam.canvas);
         labelContainer = document.getElementById("label-container");
+        errorLog = document.getElementById("error-log");
+
+        try {
+            const modelURL = URL_MODEL + "model.json";
+            const metadataURL = URL_MODEL + "metadata.json";
+
+            labelContainer.innerHTML = "Memuat model AI wajah...";
+            model = await tmImage.load(modelURL, metadataURL);
+            
+            labelContainer.innerHTML = "Membuka kamera...";
+            const flip = true; 
+            webcam = new tmImage.Webcam(350, 350, flip); 
+            
+            await webcam.setup(); 
+            await webcam.play();
+            window.requestAnimationFrame(loop);
+
+            document.getElementById("webcam-container").appendChild(webcam.canvas);
+            labelContainer.innerHTML = "Mencari wajah...";
+        } catch (err) {
+            labelContainer.innerHTML = "<span class='stranger'>Kamera / Model Gagal Dimuat</span>";
+            errorLog.innerHTML = `
+                <div class='error'>
+                    <b>⚠️ Tips Mengatasi Stuck:</b><br>
+                    1. <b>Izinkan Kamera:</b> Lihat ke pojok kiri atas browser (dekat ikon gembok/alamat web). Jika ada notifikasi izin kamera, klik <b>Allow / Izinkan</b>.<br>
+                    2. <b>Gunakan Browser Lain:</b> Jika memakai Google Chrome masih *stuck*, coba buka file ini menggunakan <b>Microsoft Edge</b> atau <b>Mozilla Firefox</b>.<br>
+                    3. <b>Akses via Laptop/PC:</b> Pastikan perangkat yang kamu gunakan memiliki webcam yang aktif.
+                </div>`;
+        }
     }
 
     async function loop() {
@@ -58,27 +73,23 @@
         window.requestAnimationFrame(loop);
     }
 
-    // Logika Pencocokan Wajah secara Real-time
     async function predict() {
         const prediction = await model.predict(webcam.canvas);
         
-        // Asumsi: Class 0 = Siswa_Asli, Class 1 = Orang_Lain
-        let namaSiswa = prediction[0].className;
         let scoreSiswa = prediction[0].probability;
+        let namaSiswa = prediction[0].className;
+        let scoreOrangLain = prediction[1] ? prediction[1].probability : 0;
 
-        let scoreOrangLain = prediction[1].probability;
-
-        // Jika tingkat kemiripan wajah kamu di atas 85%
+        // Toleransi kecocokan diatur pada angka 0.85 (85%)
         if (scoreSiswa > 0.85) {
             labelContainer.innerHTML = `<span class="match">Absen Berhasil! Selamat Datang, ${namaSiswa} (${(scoreSiswa * 100).toFixed(0)}%)</span>`;
         } else if (scoreOrangLain > 0.85) {
             labelContainer.innerHTML = `<span class="stranger">Absen Gagal! Anda Terdeteksi sebagai ORANG LAIN</span>`;
         } else {
-            labelContainer.innerHTML = "Mencari wajah...";
+            labelContainer.innerHTML = "Menyelaraskan wajah...";
         }
     }
 
-    // Jalankan aplikasi langsung saat web dibuka
     init();
 </script>
 </body>

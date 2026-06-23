@@ -24,7 +24,6 @@
         h2 { margin-bottom: 5px; color: #333; font-size: 24px; }
         .sub-title { color: #6c757d; font-size: 14px; margin-top: 0; margin-bottom: 20px; }
         
-        /* Kotak Bingkai Kamera Mirip di Screenshot */
         .camera-box {
             background-color: black;
             border-radius: 15px;
@@ -38,7 +37,7 @@
             border-radius: 10px;
             overflow: hidden;
             width: 350px;
-            height: 200px; /* Diatur agak lebar menyamping sesuai kotak bidik */
+            height: 200px; 
             background: #111;
             display: flex;
             justify-content: center;
@@ -50,16 +49,20 @@
             object-fit: cover;
         }
 
-        /* Status Section */
         .status-container { margin: 15px 0; }
         .icon-cam { font-size: 24px; margin-bottom: 5px; display: block; }
         #label-container { font-size: 16px; font-weight: bold; color: #495057; }
         
-        /* Warna tulisan dinamis */
+        /* Pewarnaan Status */
         .match { color: #28a745 !important; }
         .stranger { color: #dc3545 !important; }
+        
+        /* Label Status Kehadiran */
+        .badge { padding: 2px 6px; border-radius: 4px; font-size: 12px; font-weight: bold; color: white; }
+        .badge-hadir { background-color: #28a745; }
+        .badge-telat { background-color: #ffc107; color: #212529; }
+        .badge-alpa { background-color: #dc3545; }
 
-        /* Riwayat Kotak Bawah */
         .history-box {
             background: white;
             border-radius: 12px;
@@ -81,8 +84,8 @@
             margin-bottom: 10px;
         }
         .history-count { font-size: 12px; color: #6c757d; }
-        #history-list { list-style: none; padding: 0; margin: 0; font-size: 14px; color: #495057; max-height: 100px; overflow-y: auto; }
-        #history-list li { padding: 4px 0; border-bottom: 1px dashed #f1f3f5; }
+        #history-list { list-style: none; padding: 0; margin: 0; font-size: 14px; color: #495057; max-height: 150px; overflow-y: auto; }
+        #history-list li { padding: 6px 0; border-bottom: 1px dashed #f1f3f5; display: flex; justify-content: space-between; }
     </style>
 </head>
 <body>
@@ -92,8 +95,7 @@
     <p class="sub-title">Arahkan wajah Anda ke dalam kotak bidik</p>
     
     <div class="camera-box">
-        <div class="camera-inside" id="webcam-container">
-            </div>
+        <div class="camera-inside" id="webcam-container"></div>
     </div>
     
     <div class="status-container">
@@ -115,12 +117,18 @@
 <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest/dist/teachablemachine-image.min.js"></script>
 
 <script type="text/javascript">
-    // Link Teachable Machine milikmu
     const URL_MODEL = "https://teachablemachine.withgoogle.com/models/oHOHxZyqo/";
 
     let model, webcam, labelContainer, totalScanElement, historyList;
     let totalScan = 0;
-    let isCooldown = false; // Mencegah spam absensi berulang-ulang dalam 1 detik
+    let isCooldown = false; 
+
+    // ⏱️ PENGATURAN JAM ABSENSI (Silakan edit sesuai kebutuhan sekolahmu)
+    const JAM_MASUK_MAKSIMAL = 7;   // Jam 07:00 pagi
+    const MENIT_MASUK_MAKSIMAL = 0; // Menit ke-00
+
+    const JAM_BATAS_TELAT = 8;      // Di atas jam 08:00 dianggap Alpa/Tidak Hadir
+    const MENIT_BATAS_TELAT = 0;
 
     async function init() {
         labelContainer = document.getElementById("label-container");
@@ -134,22 +142,16 @@
             labelContainer.innerHTML = "Memuat model wajah...";
             model = await tmImage.load(modelURL, metadataURL);
             
-            labelContainer.innerHTML = "Membuka kamera...";
-            const flip = true; 
-            
-            // Set ukuran webcam agar pas di dalam kotak bidik
-            webcam = new tmImage.Webcam(350, 200, flip); 
+            webcam = new tmImage.Webcam(350, 200, true); 
             await webcam.setup(); 
             await webcam.play();
             window.requestAnimationFrame(loop);
 
-            // Masukkan canvas kamera ke dalam kotak bidik hitam
             document.getElementById("webcam-container").innerHTML = "";
             document.getElementById("webcam-container").appendChild(webcam.canvas);
             labelContainer.innerHTML = "Mencari wajah...";
         } catch (err) {
-            labelContainer.innerHTML = "<span class='stranger'>Gagal mengaktifkan kamera. Pastikan klik 'Allow' di pojok kiri atas!</span>";
-            console.error(err);
+            labelContainer.innerHTML = "<span class='stranger'>Gagal mengaktifkan kamera.</span>";
         }
     }
 
@@ -167,42 +169,61 @@
         let namaSiswa = prediction[0].className;
         let scoreOrangLain = prediction[1] ? prediction[1].probability : 0;
 
-        // Jika wajah kamu terdeteksi di atas 85%
         if (scoreSiswa > 0.85) {
-            labelContainer.innerHTML = `<span class="match">Scan Berhasil! Selamat Datang, ${namaSiswa}</span>`;
+            // Cek status waktu saat ini
+            const sekarang = new Date();
+            const jam = sekarang.getHours();
+            const menit = sekarang.getMinutes();
             
-            // Catat ke riwayat jika sedang tidak cooldown
+            let statusKehadiran = "";
+            let badgeClass = "";
+
+            // Logika Penentuan Hadir / Telat / Alpa
+            if (jam < JAM_MASUK_MAKSIMAL || (jam === JAM_MASUK_MAKSIMAL && menit === MENIT_MASUK_MAKSIMAL)) {
+                statusKehadiran = "Tepat Waktu";
+                badgeClass = "badge-hadir";
+            } else if (jam < JAM_BATAS_TELAT || (jam === JAM_BATAS_TELAT && menit === MENIT_BATAS_TELAT)) {
+                statusKehadiran = "Terlambat";
+                badgeClass = "badge-telat";
+            } else {
+                statusKehadiran = "Alpa / Terlalu Lambat";
+                badgeClass = "badge-alpa";
+            }
+
+            labelContainer.innerHTML = `<span class="match">WAJAH COCOK!<br><small style="color:#6c757d">Siswa: ${namaSiswa} (${statusKehadiran})</small></span>`;
+            
             if (!isCooldown) {
-                tambahRiwayat(namaSiswa);
+                tambahRiwayat(namaSiswa, statusKehadiran, badgeClass);
             }
         } else if (scoreOrangLain > 0.85) {
-            labelContainer.innerHTML = `<span class="stranger">Scan Gagal! Anda Terdeteksi sebagai ORANG LAIN</span>`;
+            labelContainer.innerHTML = `<span class="stranger">WAJAH TIDAK COCOK!<br><small style="color:#6c757d">Terdeteksi Orang Lain</small></span>`;
         } else {
             labelContainer.innerHTML = "Menyelaraskan wajah...";
             labelContainer.className = "";
         }
     }
 
-    function tambahRiwayat(nama) {
+    function tambahRiwayat(nama, status, badge) {
         isCooldown = true;
         totalScan++;
         totalScanElement.innerText = totalScan;
 
-        // Ambil waktu saat ini
         const sekarang = new Date();
         const jam = String(sekarang.getHours()).padStart(2, '0');
         const menit = String(sekarang.getMinutes()).padStart(2, '0');
         const detik = String(sekarang.getSeconds()).padStart(2, '0');
 
-        // Buat baris baru di riwayat
         const li = document.createElement("li");
-        li.innerHTML = `✅ <b>${nama}</b> berhasil absen pada pukul [${jam}:${menit}:${detik}]`;
+        li.innerHTML = `
+            <span>Scan #${totalScan} — <b>${nama}</b> (${jam}:${menit}:${detik})</span>
+            <span class="badge ${badge}">${status}</span>
+        `;
         historyList.insertBefore(li, historyList.firstChild);
 
-        // Beri jeda 3 detik sebelum bisa absen lagi agar tidak menumpuk dalam sekejap
+        // Cooldown 4 detik agar satu orang tidak terabsen berkali-kali secara tidak sengaja
         setTimeout(() => {
             isCooldown = false;
-        }, 3000);
+        }, 4000);
     }
 
     init();

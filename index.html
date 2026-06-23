@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Absensi Wajah Instan</title>
+    <style>
+        body { font-family: Arial, sans-serif; text-align: center; background-color: #f0f2f5; padding-top: 50px; }
+        .container { max-width: 500px; margin: 0 auto; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+        #webcam-container { margin: 20px 0; border-radius: 8px; overflow: hidden; display: inline-block; background: #333; }
+        #label-container { font-size: 20px; font-weight: bold; margin-top: 15px; }
+        .match { color: green; }
+        .stranger { color: red; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>Sistem Absensi Wajah Tercepat</h2>
+    <p>Posisikan wajah Anda di depan kamera untuk verifikasi.</p>
+    
+    <div id="webcam-container"></div>
+    <div id="label-container">Menyalakan kamera...</div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest/dist/teachablemachine-image.min.js"></script>
+
+<script type="text/javascript">
+    // 🔴 GANTI LINK DI BAWAH INI DENGAN URL LINK MODEL KAMU DARI TEACHABLE MACHINE
+    const URL_MODEL = "https://teachablemachine.withgoogle.com/models/MASUKKAN_KODE_MODEL_KAMU_DISINI/";
+
+    let model, webcam, labelContainer, maxPredictions;
+
+    async function init() {
+        const modelURL = URL_MODEL + "model.json";
+        const metadataURL = URL_MODEL + "metadata.json";
+
+        // Load model wajah
+        model = await tmImage.load(modelURL, metadataURL);
+        maxPredictions = model.getTotalClasses();
+
+        // Setup Webcam
+        const flip = true; 
+        webcam = new tmImage.Webcam(350, 350, flip); // Lebar, Tinggi, Flip kamera
+        await webcam.setup(); 
+        await webcam.play();
+        window.requestAnimationFrame(loop);
+
+        // Masukkan element webcam ke HTML
+        document.getElementById("webcam-container").appendChild(webcam.canvas);
+        labelContainer = document.getElementById("label-container");
+    }
+
+    async function loop() {
+        webcam.update(); 
+        await predict();
+        window.requestAnimationFrame(loop);
+    }
+
+    // Logika Pencocokan Wajah secara Real-time
+    async function predict() {
+        const prediction = await model.predict(webcam.canvas);
+        
+        // Asumsi: Class 0 = Siswa_Asli, Class 1 = Orang_Lain
+        let namaSiswa = prediction[0].className;
+        let scoreSiswa = prediction[0].probability;
+
+        let scoreOrangLain = prediction[1].probability;
+
+        // Jika tingkat kemiripan wajah kamu di atas 85%
+        if (scoreSiswa > 0.85) {
+            labelContainer.innerHTML = `<span class="match">Absen Berhasil! Selamat Datang, ${namaSiswa} (${(scoreSiswa * 100).toFixed(0)}%)</span>`;
+        } else if (scoreOrangLain > 0.85) {
+            labelContainer.innerHTML = `<span class="stranger">Absen Gagal! Anda Terdeteksi sebagai ORANG LAIN</span>`;
+        } else {
+            labelContainer.innerHTML = "Mencari wajah...";
+        }
+    }
+
+    // Jalankan aplikasi langsung saat web dibuka
+    init();
+</script>
+</body>
+</html>
